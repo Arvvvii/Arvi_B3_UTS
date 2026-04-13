@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import '../providers/ticket_provider.dart';
-import '../../../core/theme/glassmorphism.dart';
-import '../../auth/presentation/providers/auth_provider.dart';
-import '../../auth/domain/user_model.dart';
-import '../domain/ticket_model.dart';
+import 'package:maauts003/features/ticket/presentation/providers/ticket_provider.dart';
+import 'package:maauts003/core/theme/glassmorphism.dart';
+import 'package:maauts003/features/auth/presentation/providers/auth_provider.dart';
+import 'package:maauts003/features/auth/domain/user_model.dart';
+import 'package:maauts003/features/ticket/domain/ticket_model.dart';
 
 class TicketListScreen extends ConsumerStatefulWidget {
   const TicketListScreen({super.key});

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../domain/ticket_model.dart';
-import '../data/ticket_repository.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:maauts003/features/ticket/domain/ticket_model.dart';
+import 'package:maauts003/features/ticket/data/ticket_repository.dart';
 
 class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   final TicketRepository _repository;

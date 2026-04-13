@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../../core/theme/glassmorphism.dart';
-import '../../auth/presentation/providers/auth_provider.dart';
-import '../../auth/domain/user_model.dart';
+import 'package:maauts003/core/theme/glassmorphism.dart';
+import 'package:maauts003/features/auth/presentation/providers/auth_provider.dart';
+import 'package:maauts003/features/auth/domain/user_model.dart';
 import 'package:go_router/go_router.dart';
 
 class DashboardScreen extends ConsumerWidget {

@@ -9,13 +9,13 @@ class GlassmorphismCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
 
   const GlassmorphismCard({
-    Key? key,
+    super.key,
     required this.child,
     this.blur = 10,
     this.opacity = 0.1,
     this.borderRadius,
     this.padding,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

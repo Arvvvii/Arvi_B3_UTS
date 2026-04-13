@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/theme_provider.dart';
-import '../../auth/presentation/providers/auth_provider.dart';
-import '../../../core/theme/glassmorphism.dart';
+import 'package:maauts003/core/theme/theme_provider.dart';
+import 'package:maauts003/features/auth/presentation/providers/auth_provider.dart';
+import 'package:maauts003/core/theme/glassmorphism.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});

@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../domain/user_model.dart';
+import 'package:maauts003/features/auth/domain/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthRepository {

@@ -27,12 +27,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: Colors.black87),
         titleTextStyle: TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.w600),
       ),
-      cardTheme: CardTheme(
-        color: cardLight,
-        elevation: 4,
-        shadowColor: Colors.black.withOpacity(0.05),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
+      cardTheme: const CardThemeData(),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryBlue,
@@ -84,12 +79,7 @@ class AppTheme {
         iconTheme: IconThemeData(color: Colors.white),
         titleTextStyle: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
       ),
-      cardTheme: CardTheme(
-        color: cardDark,
-        elevation: 4,
-        shadowColor: Colors.black.withOpacity(0.2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      ),
+      cardTheme: const CardThemeData(),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryBlue,

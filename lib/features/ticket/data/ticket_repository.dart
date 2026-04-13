@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../domain/ticket_model.dart';
+import 'package:maauts003/features/ticket/domain/ticket_model.dart';
 
 class TicketRepository {
   final List<TicketModel> _mockTickets = List.generate(50, (index) {
