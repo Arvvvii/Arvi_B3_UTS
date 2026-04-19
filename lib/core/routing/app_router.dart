@@ -47,8 +47,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/dashboard',
-                name: 'dashboard',
+                path: '/dashboard/pelapor',
+                name: 'dashboard_pelapor',
+                builder: (context, state) => const DashboardScreen(),
+              ),
+              GoRoute(
+                path: '/dashboard/management',
+                name: 'dashboard_management',
                 builder: (context, state) => const DashboardScreen(),
               ),
             ],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:maauts003/core/theme/glassmorphism.dart';
+import 'package:maauts003/features/auth/domain/user_model.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -21,8 +22,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _emailController.text,
       _passwordController.text,
     );
-    if (success && mounted) {
-      context.go('/dashboard');
+    if (mounted) {
+      if (success) {
+        final authState = ref.read(authProvider);
+        if (authState.value?.role == UserRole.admin || authState.value?.role == UserRole.helpdesk) {
+          context.go('/dashboard/management');
+        } else {
+          context.go('/dashboard/pelapor');
+        }
+      } else {
+        final authState = ref.read(authProvider);
+        final errorMessage = authState.error?.toString() ?? 'Login failed. Please check your credentials.';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:maauts003/features/auth/presentation/providers/auth_provider.dart';
+import 'package:maauts003/features/auth/domain/user_model.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
 
@@ -21,11 +24,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     _controller.forward();
     
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    await Future.delayed(const Duration(seconds: 2)); // Minimum splash delay
+    
+    if (!mounted) return;
+    
+    final hasSession = await ref.read(authProvider.notifier).checkSession();
+    
+    if (mounted) {
+      if (hasSession) {
+        final authState = ref.read(authProvider);
+        if (authState.value?.role == UserRole.admin || authState.value?.role == UserRole.helpdesk) {
+          context.go('/dashboard/management');
+        } else {
+          context.go('/dashboard/pelapor');
+        }
+      } else {
         context.go('/login');
       }
-    });
+    }
   }
 
   @override

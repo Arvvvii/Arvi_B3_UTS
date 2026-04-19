@@ -67,22 +67,36 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
   @override
   Widget build(BuildContext context) {
     final ticketsState = ref.watch(ticketListProvider);
+    final filter = ref.watch(ticketFilterProvider);
     final user = ref.watch(authProvider).value;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tickets'),
-        actions: [
-            if (user?.role == UserRole.user)
-              IconButton(
-                icon: const Icon(LucideIcons.plus),
-                onPressed: () => context.push('/tickets/create'),
-              )
-        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/tickets/create'),
+        backgroundColor: Colors.blue,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(LucideIcons.plus, color: Colors.white),
       ),
       body: ticketsState.when(
         data: (tickets) {
-          if (tickets.isEmpty) {
+          List<TicketModel> filteredTickets = tickets;
+          
+          if (user != null && user.role == UserRole.user) {
+            filteredTickets = filteredTickets.where((t) => t.createdBy == user.id || t.createdBy == user.email).toList();
+          }
+
+          if (filter == 'Open') {
+            filteredTickets = filteredTickets.where((t) => t.status == TicketStatus.open).toList();
+          } else if (filter == 'In Progress') {
+            filteredTickets = filteredTickets.where((t) => t.status == TicketStatus.inProgress).toList();
+          } else if (filter == 'Resolved') {
+            filteredTickets = filteredTickets.where((t) => t.status == TicketStatus.resolved).toList();
+          }
+
+          if (filteredTickets.isEmpty) {
             return const Center(child: Text('No tickets found.'));
           }
 
@@ -91,45 +105,56 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
             child: ListView.separated(
               controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: tickets.length + 1,
+              itemCount: filteredTickets.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                if (index == tickets.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
+                if (index == filteredTickets.length) {
+                  final notifier = ref.read(ticketListProvider.notifier);
+                  if (notifier.hasMore) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  } else {
+                    return const SizedBox.shrink();
+                  }
                 }
 
-                final ticket = tickets[index];
-                return GestureDetector(
-                  onTap: () => context.push('/tickets/${ticket.id}'),
-                  child: GlassmorphismCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(ticket.id, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                            _buildStatusBadge(ticket.status),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(ticket.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Icon(LucideIcons.calendar, size: 14, color: Colors.grey[500]),
-                            const SizedBox(width: 4),
-                            Text(
-                              DateFormat('MMM dd, yyyy').format(ticket.createdAt),
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ],
+                final ticket = filteredTickets[index];
+                final displayId = ticket.id.length > 8 ? '${ticket.id.substring(0, 8)}...' : ticket.id;
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => context.push('/tickets/${ticket.id}'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: GlassmorphismCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(displayId, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                              _buildStatusBadge(ticket.status),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(ticket.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(LucideIcons.calendar, size: 14, color: Colors.grey[500]),
+                              const SizedBox(width: 4),
+                              Text(
+                                DateFormat('MMM dd, yyyy').format(ticket.createdAt),
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

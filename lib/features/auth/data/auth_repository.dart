@@ -1,47 +1,140 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:maauts003/features/auth/domain/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthRepository {
+  final SupabaseClient _supabaseClient = Supabase.instance.client;
+
   Future<UserModel> login(String email, String password) async {
-    await Future.delayed(const Duration(seconds: 1)); // Mock network delay
-    // Mock Role Based Access
+    final response = await _supabaseClient.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+    
+    if (response.user == null) {
+      throw Exception('Login failed: User is null');
+    }
+
+    final String userId = response.user!.id;
+    final String userEmail = response.user!.email ?? email;
+
+    // Ambil role dari tabel profiles
+    final profileResponse = await _supabaseClient
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    String name = userEmail.split('@').first;
     UserRole role = UserRole.user;
-    if (email.contains('admin')) {
-      role = UserRole.admin;
-    } else if (email.contains('helpdesk')) {
-      role = UserRole.helpdesk;
+
+    if (profileResponse != null) {
+      if (profileResponse['name'] != null) {
+        name = profileResponse['name'];
+      }
+      if (profileResponse['role'] != null) {
+        try {
+          role = UserRole.values.firstWhere(
+            (e) => e.name == profileResponse['role']
+          );
+        } catch (_) {}
+      }
+    }
+    
+    final user = UserModel(
+      id: userId,
+      name: name,
+      email: userEmail,
+      role: role,
+    );
+
+    // Save auth token dummy / role dummy mechanism is no longer really needed 
+    // since Supabase handles session but let's keep role in prefs if needed later
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_role', user.role.toString());
+
+    return user;
+  }
+
+  Future<UserModel?> restoreSession() async {
+    final session = _supabaseClient.auth.currentSession;
+    if (session == null || session.user == null) {
+      return null;
+    }
+
+    final String userId = session.user!.id;
+    final String userEmail = session.user!.email ?? '';
+
+    final profileResponse = await _supabaseClient
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    String name = userEmail.split('@').first;
+    UserRole role = UserRole.user;
+
+    if (profileResponse != null) {
+      if (profileResponse['name'] != null) {
+        name = profileResponse['name'];
+      }
+      if (profileResponse['role'] != null) {
+        try {
+          role = UserRole.values.firstWhere(
+            (e) => e.name == profileResponse['role']
+          );
+        } catch (_) {}
+      }
     }
 
     final user = UserModel(
-      id: 'usr_123',
-      name: email.split('@').first,
-      email: email,
+      id: userId,
+      name: name,
+      email: userEmail,
       role: role,
     );
     
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', 'mock_token_${user.id}');
     await prefs.setString('user_role', user.role.toString());
 
     return user;
   }
 
   Future<void> logout() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    await _supabaseClient.auth.signOut();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
     await prefs.remove('user_role');
   }
 
   Future<UserModel> register(String name, String email, String password) async {
-    await Future.delayed(const Duration(seconds: 1));
-    return UserModel(id: 'usr_999', name: name, email: email, role: UserRole.user);
+    final response = await _supabaseClient.auth.signUp(
+      email: email,
+      password: password,
+    );
+    
+    if (response.user == null) {
+      throw Exception('Registration failed');
+    }
+
+    // Auto-create profile in public.profiles table
+    await _supabaseClient.from('profiles').insert({
+      'id': response.user!.id,
+      'full_name': name,
+      'username': email,
+      'role': 'user', // Default role for public registration
+    });
+
+    return UserModel(
+      id: response.user!.id,
+      name: name,
+      email: response.user!.email ?? email,
+      role: UserRole.user,
+    );
   }
 
   Future<void> resetPassword(String email) async {
-    await Future.delayed(const Duration(seconds: 1));
-    // simulate reset email sent
+    await _supabaseClient.auth.resetPasswordForEmail(email);
   }
 }
 

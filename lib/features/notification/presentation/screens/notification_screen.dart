@@ -2,22 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:maauts003/core/theme/glassmorphism.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maauts003/features/ticket/presentation/providers/ticket_provider.dart';
+import 'package:maauts003/features/ticket/domain/ticket_model.dart';
 import 'package:intl/intl.dart';
 
-class NotificationScreen extends StatelessWidget {
+class NotificationItem {
+  final String ticketId;
+  final String title;
+  final String message;
+  final DateTime time;
+  final bool isRead;
+
+  NotificationItem({required this.ticketId, required this.title, required this.message, required this.time, this.isRead = false});
+}
+
+class NotificationScreen extends ConsumerWidget {
   const NotificationScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final mockNotifications = List.generate(5, (index) {
-      return {
-        'id': 'TCK-${1000 + index}',
-        'title': 'Ticket Update: TCK-${1000 + index}',
-        'message': 'Your ticket status has been changed to In Progress.',
-        'time': DateTime.now().subtract(Duration(minutes: index * 15)),
-        'isRead': index > 1,
-      };
-    });
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ticketsState = ref.watch(ticketListProvider);
+
+    List<NotificationItem> notifications = [];
+
+    if (ticketsState.value != null) {
+      for (final ticket in ticketsState.value!) {
+        for (final event in ticket.timeline) {
+          notifications.add(
+            NotificationItem(
+              ticketId: ticket.id,
+              title: 'Ticket Update: ${ticket.id.length > 8 ? '${ticket.id.substring(0, 8)}...' : ticket.id}',
+              message: event.description,
+              time: event.timestamp,
+              isRead: false,
+            ),
+          );
+        }
+      }
+    }
+
+    notifications.sort((a, b) => b.time.compareTo(a.time));
 
     return Scaffold(
       appBar: AppBar(
@@ -31,24 +56,28 @@ class NotificationScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView.separated(
+      body: notifications.isEmpty 
+        ? const Center(child: Text('No new notifications'))
+        : ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: mockNotifications.length,
+        itemCount: notifications.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final notif = mockNotifications[index];
-          final isRead = notif['isRead'] as bool;
+          final notif = notifications[index];
+          final isRead = notif.isRead;
 
-          return GestureDetector(
-            onTap: () {
-              // Navigates directly to the related Ticket Detail page (FR-007)
-              context.push('/tickets/${notif['id']}');
-            },
-            child: GlassmorphismCard(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                context.push('/tickets/${notif.ticketId}');
+              },
+              child: GlassmorphismCard(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -67,7 +96,7 @@ class NotificationScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          notif['title'] as String,
+                          notif.title,
                           style: TextStyle(
                             fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
                             fontSize: 14,
@@ -75,12 +104,12 @@ class NotificationScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          notif['message'] as String,
+                          notif.message,
                           style: TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          DateFormat('hh:mm a').format(notif['time'] as DateTime),
+                          DateFormat('hh:mm a').format(notif.time),
                           style: const TextStyle(color: Colors.grey, fontSize: 11),
                         ),
                       ],
@@ -99,8 +128,9 @@ class NotificationScreen extends StatelessWidget {
                 ],
               ),
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }

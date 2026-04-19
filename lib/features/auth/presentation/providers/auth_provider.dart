@@ -25,14 +25,36 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 
+  Future<void> register(String name, String email, String password) async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.register(name, email, password);
+      state = AsyncValue.data(user);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     state = const AsyncValue.loading();
     await _repository.logout();
     state = const AsyncValue.data(null);
   }
 
-  // Set dummy initial user for quick development preview
-  void setInitialUser(UserModel user) {
-     state = AsyncValue.data(user);
+  Future<bool> checkSession() async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.restoreSession();
+      if (user != null) {
+        state = AsyncValue.data(user);
+        return true;
+      }
+      state = const AsyncValue.data(null);
+      return false;
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      return false;
+    }
   }
 }

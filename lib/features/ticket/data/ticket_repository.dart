@@ -1,64 +1,115 @@
+import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:maauts003/features/ticket/domain/ticket_model.dart';
+import 'package:uuid/uuid.dart';
 
 class TicketRepository {
-  final List<TicketModel> _mockTickets = List.generate(50, (index) {
-    final now = DateTime.now();
-    return TicketModel(
-      id: 'TCK-${1000 + index}',
-      title: 'Issue with system module ${index + 1}',
-      description: 'The system module ${index + 1} is not responding correctly. Please check the logs.',
-      status: index % 3 == 0 ? TicketStatus.open : (index % 2 == 0 ? TicketStatus.resolved : TicketStatus.inProgress),
-      createdAt: now.subtract(Duration(days: index)),
-      createdBy: 'User ${index % 5 + 1}',
-      timeline: [
-        TicketTimeline(
-          id: 'tml_${index}_1',
-          description: 'Ticket created',
-          timestamp: now.subtract(Duration(days: index)),
-          actorRole: 'User',
-        ),
-        if (index % 3 != 0)
-          TicketTimeline(
-            id: 'tml_${index}_2',
-            description: 'Ticket marked as In Progress',
-            timestamp: now.subtract(Duration(days: index, hours: -2)),
-            actorRole: 'Helpdesk',
-          ),
-        if (index % 2 == 0 && index % 3 != 0)
-          TicketTimeline(
-            id: 'tml_${index}_3',
-            description: 'Ticket Resolved',
-            timestamp: now.subtract(Duration(days: index, hours: -5)),
-            actorRole: 'Admin',
-          ),
-      ],
-    );
-  });
+  final String baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:8080';
+  final SupabaseClient _supabaseClient = Supabase.instance.client;
+
+  Future<Map<String, String>> _getHeaders() async {
+    final session = _supabaseClient.auth.currentSession;
+    final token = session?.accessToken ?? '';
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
 
   Future<List<TicketModel>> getTickets({int page = 1, int limit = 10, String? filterRole}) async {
-    await Future.delayed(const Duration(seconds: 1)); // Mock network latency for lazy loading
-    int startIndex = (page - 1) * limit;
-    if (startIndex >= _mockTickets.length) return [];
-    
-    int endIndex = startIndex + limit;
-    if (endIndex > _mockTickets.length) endIndex = _mockTickets.length;
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/tickets'), headers: await _getHeaders());
+      if (response.statusCode == 200) {
+        final List<dynamic> body = jsonDecode(response.body);
+        return body.map((e) => TicketModel.fromJson(e)).toList();
+      } else {
+        throw Exception('Failed to load tickets: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
 
-    return _mockTickets.sublist(startIndex, endIndex);
+  Future<String> uploadTicketAttachment(File file) async {
+    final String fileName = '${const Uuid().v4()}_${file.path.split('/').last}';
+    try {
+      await _supabaseClient.storage
+          .from('ticket-attachments')
+          .upload(fileName, file);
+
+      final publicUrl = _supabaseClient.storage
+          .from('ticket-attachments')
+          .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (e) {
+      throw Exception('Failed to upload file to storage: $e');
+    }
   }
 
   Future<TicketModel?> getTicketById(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
     try {
-      return _mockTickets.firstWhere((element) => element.id == id);
-    } catch (_) {
-      return null;
+      final response = await http.get(Uri.parse('$baseUrl/tickets/$id'), headers: await _getHeaders());
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        return TicketModel.fromJson(body);
+      } else if (response.statusCode == 404) {
+        return null;
+      } else {
+        throw Exception('Failed to load ticket: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getStaffByRole(String roleName) async {
+    try {
+      final response = await _supabaseClient
+          .from('profiles')
+          .select('id, full_name, role')
+          .eq('role', roleName.toLowerCase());
+          
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to fetch staff from profiles: $e');
+    }
+  }
+
+  Future<void> updateTicket(TicketModel ticket) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/tickets/${ticket.id}'),
+        headers: await _getHeaders(),
+        body: jsonEncode(ticket.toJson()),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Failed to update ticket: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Network error while updating ticket: $e');
     }
   }
 
   Future<void> createTicket(TicketModel ticket) async {
-    await Future.delayed(const Duration(seconds: 1));
-    _mockTickets.insert(0, ticket);
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/tickets'),
+        headers: await _getHeaders(),
+        body: jsonEncode(ticket.toJson()),
+      );
+
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        throw Exception('Failed to create ticket: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Network error while creating ticket: $e');
+    }
   }
 }
 
