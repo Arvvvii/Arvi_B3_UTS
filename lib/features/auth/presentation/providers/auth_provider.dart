@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:maauts003/features/auth/domain/user_model.dart';
-import 'package:maauts003/features/auth/data/auth_repository.dart';
+import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
+import 'package:arvi_b3_uts/features/auth/data/auth_repository.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AsyncValue<UserModel?>>((ref) {
   final repo = ref.watch(authRepositoryProvider);

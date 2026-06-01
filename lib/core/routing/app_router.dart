@@ -1,17 +1,17 @@
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:maauts003/features/auth/presentation/screens/splash_screen.dart';
-import 'package:maauts003/features/auth/presentation/screens/login_screen.dart';
-import 'package:maauts003/features/auth/presentation/screens/register_screen.dart';
-import 'package:maauts003/features/auth/presentation/screens/forgot_password_screen.dart';
-import 'package:maauts003/features/dashboard/presentation/screens/main_scaffold.dart';
-import 'package:maauts003/features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'package:maauts003/features/dashboard/presentation/screens/profile_screen.dart';
-import 'package:maauts003/features/ticket/presentation/screens/ticket_list_screen.dart';
-import 'package:maauts003/features/ticket/presentation/screens/create_ticket_screen.dart';
-import 'package:maauts003/features/ticket/presentation/screens/ticket_detail_screen.dart';
-import 'package:maauts003/features/notification/presentation/screens/notification_screen.dart';
+import 'package:arvi_b3_uts/features/auth/presentation/screens/splash_screen.dart';
+import 'package:arvi_b3_uts/features/auth/presentation/screens/login_screen.dart';
+import 'package:arvi_b3_uts/features/auth/presentation/screens/register_screen.dart';
+import 'package:arvi_b3_uts/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:arvi_b3_uts/features/dashboard/presentation/screens/main_scaffold.dart';
+import 'package:arvi_b3_uts/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:arvi_b3_uts/features/dashboard/presentation/screens/profile_screen.dart';
+import 'package:arvi_b3_uts/features/ticket/presentation/screens/ticket_list_screen.dart';
+import 'package:arvi_b3_uts/features/ticket/presentation/screens/create_ticket_screen.dart';
+import 'package:arvi_b3_uts/features/ticket/presentation/screens/ticket_detail_screen.dart';
+import 'package:arvi_b3_uts/features/notification/presentation/screens/notification_screen.dart';
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(

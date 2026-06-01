@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:maauts003/features/ticket/domain/ticket_model.dart';
+import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
 import 'package:intl/intl.dart';
 
 class TimelineStepper extends StatelessWidget {

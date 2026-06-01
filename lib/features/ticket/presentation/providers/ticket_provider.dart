@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:maauts003/features/ticket/domain/ticket_model.dart';
-import 'package:maauts003/features/ticket/data/ticket_repository.dart';
+import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
+import 'package:arvi_b3_uts/features/ticket/data/ticket_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
