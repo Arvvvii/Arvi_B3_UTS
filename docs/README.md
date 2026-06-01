@@ -74,7 +74,7 @@ Sistem menerapkan pembatasan hak akses yang ketat berdasarkan peran pengguna saa
 | Mengirim Tiket & Lampiran |  | ❌ | ❌ |
 | Komentar & Masukan Timeline |  |  |  |
 | Membaca Tiket Milik Sendiri |  |  |  |
-| Membaca Seluruh Tiket Sistem | ❌ |  |  |
+| Membaca Seluruh Tiket Sistem | ❌ | ❌ *(Hanya yang di-assign)* |  |
 | Memperbarui Status Tiket *(Open ➔ In Progress ➔ Resolved)* | ❌ |  |  |
 | Menunjuk Teknisi / Staff (*Assign Staff*) | ❌ | ❌ |  |
 
@@ -148,6 +148,9 @@ if (!isUser) ...[
     label: const Text('Update Status'),
   ),
 ]
+
+// Di ticket_list_screen.dart, Tombol Create (FAB) dihilangkan untuk Admin/Helpdesk
+floatingActionButton: user?.role == UserRole.user ? FloatingActionButton(...) : null,
 ```
 
 ---

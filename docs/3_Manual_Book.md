@@ -15,7 +15,7 @@ Peran ini bertugas melaporkan kendala teknis (seperti laptop rusak, jaringan mat
     *   Pada halaman utama (Dashboard), Anda akan melihat rangkuman jumlah tiket Anda.
     *   Di bagian bawah terdapat daftar tiket yang pernah Anda buat berserta statusnya (*Open*, *In Progress*, atau *Resolved*).
 3.  **Membuat Tiket Keluhan Baru:**
-    *   Tap tombol bulat **"+" (Floating Action Button)** di sudut bawah.
+    *   Tap tombol bulat **"+" (Floating Action Button)** di sudut bawah (Hanya muncul untuk role User).
     *   Isi **Judul** kendala (contoh: "Wifi Ruang Rapat Mati").
     *   Isi **Deskripsi** detail kendala.
     *   *(Opsional)* Tap icon Kamera atau Galeri untuk mengunggah bukti foto (*screenshot error*, foto kabel terputus).
@@ -31,7 +31,7 @@ Peran ini bertugas melaporkan kendala teknis (seperti laptop rusak, jaringan mat
 Peran ini tidak membuat tiket, melainkan menyelesaikan dan merespons tiket yang masuk.
 
 1.  **Melihat Daftar Tugas:**
-    *   Saat Login, Helpdesk akan melihat seluruh antrean tiket yang berstatus *Open* atau yang di-assign (ditugaskan) ke akun Helpdesk tersebut.
+    *   Saat Login, Helpdesk secara otomatis hanya akan melihat daftar antrean tiket yang telah ditugaskan (assigned) secara khusus ke akun Helpdesk tersebut sesuai protokol ITIL.
 2.  **Menindaklanjuti Tiket:**
     *   Tap tiket yang berstatus *Open*.
     *   Pilih tombol **"Update Status"**.
@@ -48,7 +48,7 @@ Peran ini tidak membuat tiket, melainkan menyelesaikan dan merespons tiket yang 
 Peran tertinggi yang mengontrol aliran penugasan dan melihat gambaran penuh operasional tim.
 
 1.  **Dashboard Statistik:**
-    *   Saat masuk, Admin akan disuguhkan *Bento Grid* berisikan statistik metrik (Total Tiket, Tiket *Open*, Tiket Terkendala, dsb.) secara keseluruhan sistem (dari seluruh karyawan).
+    *   Saat masuk, Admin akan disuguhkan *Bento Grid* berisikan statistik metrik (Total Tiket, Tiket *Open*, Tiket Terkendala, dsb.) secara keseluruhan sistem (dari seluruh karyawan). Admin dapat melihat SEMUA tiket dari semua divisi tanpa terkecuali.
 2.  **Fitur Assign Staff (Penunjukan Otomatis/Manual):**
     *   Admin membuka tiket masuk dari Karyawan (yang berstatus *Open*).
     *   Admin dapat menekan tombol **"Assign Staff"**.

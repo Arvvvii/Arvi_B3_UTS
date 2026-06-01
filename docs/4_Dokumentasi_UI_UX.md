@@ -21,7 +21,7 @@ Aplikasi dibangun tidak hanya dengan mengutamakan performa fungsi, tapi juga est
 2.  **Main Dashboard (List Tiket)**
     *   Memiliki area informasi singkat di bagian atas (menggunakan UI Bento).
     *   *ListView/SliverList* di bawahnya untuk *infinite scrolling* tiket.
-    *   *Floating Action Button (FAB)* besar dengan efek bayangan dan animasi hover/tap.
+    *   *Floating Action Button (FAB)* besar dengan efek bayangan dan animasi hover/tap, yang menggunakan skema **Conditional Visibility** (hanya di-render jika role yang login adalah 'User').
 3.  **Detail Ticket Screen**
     *   **Header Section:** Menampilkan Judul, Badge Status (berwarna warni: Hijau untuk Resolved, Kuning/Orange untuk In Progress, Merah/Biru untuk Open), dan Nama Pelapor.
     *   **Attachment Card:** Pratinjau *thumbnail* gambar (jika ada) menggunakan *Rounded Image Loader*.

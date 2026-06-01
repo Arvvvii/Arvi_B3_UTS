@@ -29,10 +29,11 @@ Proyek ini sangat mengandalkan `flutter_riverpod` untuk menangani *State* dan pe
 Navigasi dikelola oleh `go_router` menggunakan deklarasi *path* (misal `/login`, `/dashboard`, `/ticket/:id`). 
 *   **Redirect Logic (Guard)**: Terdapat *router guard* yang memantau *auth state*. Jika state bernilai `null` (belum login) tapi pengguna mencoba membuka halaman `/dashboard`, aplikasi akan secara otomatis mem-*force redirect* pengguna kembali ke `/login`.
 
-### 5. Conditional Rendering di UI
+### 5. Conditional Rendering & Logika Filter ITIL
 Banyak komponen *Widget* menggunakan kondisi Dart untuk menyembunyikan fungsi dari peran yang tidak berhak:
-```dart
-if (user.role == UserRole.admin || user.role == UserRole.helpdesk) {
-   // Tampilkan tombol Update Status
-}
-```
+*   **Tombol Update Status:** Hanya untuk Helpdesk dan Admin (`if (!isUser)`).
+*   **Tombol Create Ticket (FAB):** Di-render secara kondisional (`user?.role == UserRole.user ? FAB : null`). Admin dan Helpdesk bertugas mengelola sistem, bukan melapor.
+*   **Hierarki Filter Daftar Tiket (`ticket_list_screen.dart`):**
+    *   **User:** Hanya melihat tiket `createdBy == user.id`.
+    *   **Helpdesk:** Hanya melihat tiket `assignedTo == user.id`.
+    *   **Admin:** Melihat semua tiket tanpa filter.

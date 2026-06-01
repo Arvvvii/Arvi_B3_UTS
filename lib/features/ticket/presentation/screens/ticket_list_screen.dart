@@ -74,18 +74,25 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
       appBar: AppBar(
         title: const Text('Tickets'),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/tickets/create'),
-        backgroundColor: Colors.blue,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Icon(LucideIcons.plus, color: Colors.white),
-      ),
+      floatingActionButton: user?.role == UserRole.user
+          ? FloatingActionButton(
+              onPressed: () => context.push('/tickets/create'),
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: const Icon(LucideIcons.plus, color: Colors.white),
+            )
+          : null,
       body: ticketsState.when(
         data: (tickets) {
           List<TicketModel> filteredTickets = tickets;
           
-          if (user != null && user.role == UserRole.user) {
-            filteredTickets = filteredTickets.where((t) => t.createdBy == user.id || t.createdBy == user.email).toList();
+          if (user != null) {
+            if (user.role == UserRole.user) {
+              filteredTickets = filteredTickets.where((t) => t.createdBy == user.id || t.createdBy == user.email).toList();
+            } else if (user.role == UserRole.helpdesk) {
+              filteredTickets = filteredTickets.where((t) => t.assignedTo == user.id).toList();
+            }
+            // Admin sees all, no filter needed.
           }
 
           if (filter == 'Open') {

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
@@ -24,10 +26,35 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     _hasMore = true;
     try {
       final initialData = await _repository.getTickets(page: _currentPage);
-      state = AsyncValue.data(initialData);
+      final mergedData = await _mergeWithLocalExtraData(initialData);
+      state = AsyncValue.data(mergedData);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
+  }
+
+  Future<List<TicketModel>> _mergeWithLocalExtraData(List<TicketModel> tickets) async {
+    final prefs = await SharedPreferences.getInstance();
+    return tickets.map((t) {
+      final extraDataString = prefs.getString('ticket_extra_${t.id}');
+      if (extraDataString != null) {
+        final extraData = jsonDecode(extraDataString);
+        return t.copyWith(
+          assignedTo: t.assignedTo?.isNotEmpty == true ? t.assignedTo : extraData['assignedTo'],
+          timeline: t.timeline.isEmpty ? (extraData['timeline'] as List<dynamic>?)?.map((e) => TicketTimeline.fromJson(e)).toList() : t.timeline,
+        );
+      }
+      return t;
+    }).toList();
+  }
+
+  Future<void> _saveExtraData(TicketModel ticket) async {
+    final prefs = await SharedPreferences.getInstance();
+    final extraData = {
+      'assignedTo': ticket.assignedTo,
+      'timeline': ticket.timeline.map((e) => e.toJson()).toList(),
+    };
+    await prefs.setString('ticket_extra_${ticket.id}', jsonEncode(extraData));
   }
 
   Future<void> loadMore() async {
@@ -37,11 +64,16 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     try {
       _currentPage++;
       final moreData = await _repository.getTickets(page: _currentPage);
-      if (moreData.isEmpty) {
+      final currentList = state.value ?? [];
+      
+      // Fix for infinite scroll: Deduplicate incoming data
+      final newItems = moreData.where((newItem) => !currentList.any((existing) => existing.id == newItem.id)).toList();
+      
+      if (newItems.isEmpty) {
         _hasMore = false;
       } else {
-        final currentList = state.value ?? [];
-        state = AsyncValue.data([...currentList, ...moreData]);
+        final mergedItems = await _mergeWithLocalExtraData(newItems);
+        state = AsyncValue.data([...currentList, ...mergedItems]);
       }
     } catch (e) {
       // Handle error gracefully without overriding list
@@ -61,6 +93,7 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     
     final currentList = state.value ?? [];
     state = AsyncValue.data([ticketToCreate, ...currentList]);
+    await _saveExtraData(ticketToCreate);
   }
   Future<void> updateTicketStatus(String id, TicketStatus newStatus, String actorRole) async {
     final currentList = state.value ?? [];
@@ -88,6 +121,7 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     final updatedList = List<TicketModel>.from(currentList);
     updatedList[ticketIndex] = updatedTicket;
     state = AsyncValue.data(updatedList);
+    await _saveExtraData(updatedTicket);
   }
 
   Future<void> addComment(String id, String comment, String actorRole) async {
@@ -112,6 +146,7 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     final updatedList = List<TicketModel>.from(currentList);
     updatedList[ticketIndex] = updatedTicket;
     state = AsyncValue.data(updatedList);
+    await _saveExtraData(updatedTicket);
   }
 
   Future<void> autoAssignTicket(String id, String targetRole, String actorRole) async {
@@ -151,6 +186,7 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     final updatedList = List<TicketModel>.from(currentList);
     updatedList[ticketIndex] = updatedTicket;
     state = AsyncValue.data(updatedList);
+    await _saveExtraData(updatedTicket);
   }
 }
 

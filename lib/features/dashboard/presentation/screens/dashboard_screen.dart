@@ -28,7 +28,8 @@ class DashboardScreen extends ConsumerWidget {
       final userEmail = authState.value!.email;
 
       filteredTickets = ticketState.value!.where((t) {
-        if (role == UserRole.admin || role == UserRole.helpdesk) return true;
+        if (role == UserRole.admin) return true;
+        if (role == UserRole.helpdesk) return t.assignedTo == userId;
         // Asumsi backend menyimpan UUID user di created_by
         return t.createdBy == userId || t.createdBy == userEmail; 
       }).toList();
