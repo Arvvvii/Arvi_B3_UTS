@@ -49,6 +49,8 @@ dependencies:
   supabase_flutter: ^2.12.4 # WAJIB untuk Auth & Storage (BaaS)
   flutter_dotenv: ^5.1.0
   uuid: ^4.5.3
+  flutter_local_notifications: ^22.0.1
+
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +62,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo/logo_app.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -75,6 +83,7 @@ flutter:
   # Tambahkan ini tepat di bawah uses-material-design
   assets:
     - .env
+    - assets/logo/logo_app.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

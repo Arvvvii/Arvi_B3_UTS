@@ -12,6 +12,7 @@ import 'package:arvi_b3_uts/features/ticket/presentation/screens/ticket_list_scr
 import 'package:arvi_b3_uts/features/ticket/presentation/screens/create_ticket_screen.dart';
 import 'package:arvi_b3_uts/features/ticket/presentation/screens/ticket_detail_screen.dart';
 import 'package:arvi_b3_uts/features/notification/presentation/screens/notification_screen.dart';
+import 'package:arvi_b3_uts/features/dashboard/presentation/screens/user_management_screen.dart';
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -37,6 +38,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/forgot-password',
         name: 'forgot_password',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/user-management',
+        name: 'user_management',
+        builder: (context, state) => const UserManagementScreen(),
       ),
       // Stateful shell for Bottom Navigation Bar
       StatefulShellRoute.indexedStack(

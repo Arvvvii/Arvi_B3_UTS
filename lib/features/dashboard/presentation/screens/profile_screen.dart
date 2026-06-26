@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:arvi_b3_uts/core/theme/theme_provider.dart';
 import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
+import 'package:arvi_b3_uts/features/ticket/presentation/providers/ticket_provider.dart';
 import 'package:arvi_b3_uts/core/theme/glassmorphism.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -57,6 +58,20 @@ class ProfileScreen extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
+          
+          if (user?.role.toString().split('.').last.toLowerCase() == 'admin') ...[
+            GlassmorphismCard(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: ListTile(
+                leading: const Icon(LucideIcons.users, color: Colors.red),
+                title: const Text('User Management', style: TextStyle(fontWeight: FontWeight.w600)),
+                trailing: const Icon(LucideIcons.chevronRight),
+                onTap: () => context.push('/user-management'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          
           GlassmorphismCard(
             padding: const EdgeInsets.all(8),
             child: Column(
@@ -76,6 +91,8 @@ class ProfileScreen extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () async {
               await ref.read(authProvider.notifier).logout();
+              ref.invalidate(ticketListProvider);
+              ref.invalidate(dashboardStatsProvider);
               if (context.mounted) {
                 context.go('/login');
               }

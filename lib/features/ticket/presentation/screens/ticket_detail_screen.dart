@@ -7,6 +7,8 @@ import 'package:arvi_b3_uts/features/ticket/presentation/providers/ticket_provid
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
 import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:arvi_b3_uts/features/dashboard/data/user_repository.dart';
+import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
 
 class TicketDetailScreen extends ConsumerWidget {
   final String ticketId;
@@ -20,7 +22,6 @@ class TicketDetailScreen extends ConsumerWidget {
       case TicketStatus.inProgress:
         return Colors.orange;
       case TicketStatus.open:
-      default:
         return Colors.blue;
     }
   }
@@ -381,6 +382,7 @@ class TicketDetailScreen extends ConsumerWidget {
           user?.role.toString().split('.').last.toUpperCase() ?? 'ADMIN'
         );
         ref.invalidate(ticketDetailProvider(ticketId));
+        ref.invalidate(dashboardStatsProvider);
         // KUNCI: Kita mematikan invalidate(ticketListProvider) agar Timeline & Assigned Staff LOKAL tidak lenyap!
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status updated successfully!'), backgroundColor: Colors.green));
@@ -430,48 +432,79 @@ class TicketDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _showAssignDialog(BuildContext context, WidgetRef ref, TicketModel ticket, dynamic user) async {
-    final roles = ['Helpdesk', 'IT Support'];
-    final selectedRole = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Auto-Assign Ticket', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Select a department to handle this ticket:', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-            const SizedBox(height: 16),
-            ...roles.map((role) {
-              return ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                leading: const Icon(LucideIcons.users, color: Colors.deepPurple),
-                title: Text(role, style: const TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () => Navigator.pop(context, role),
-              );
-            }).toList(),
-          ],
-        ),
-      ),
+    // Show loading snackbar instead of blocking dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Memuat daftar staff...'), duration: Duration(milliseconds: 500)),
     );
 
-    if (selectedRole != null && selectedRole.isNotEmpty && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Finding staff for $selectedRole...')));
-      try {
-        await ref.read(ticketListProvider.notifier).autoAssignTicket(
-          ticket.id, 
-          selectedRole, 
-          user?.role.toString().split('.').last.toUpperCase() ?? 'ADMIN'
-        );
-        ref.invalidate(ticketDetailProvider(ticketId));
-        // Force fully realtime update reading straight from updated list provider!
+    try {
+      final staffList = await ref.read(userRepositoryProvider).getHelpdeskUsers();
+
+      if (staffList.isEmpty) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ticket assigned successfully!'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tidak ada staff Helpdesk tersedia')));
         }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to assign: $e'), backgroundColor: Colors.red));
+        return;
+      }
+
+      final selectedStaff = await showDialog<UserModel>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Assign Staff', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Pilih staff helpdesk untuk menangani tiket ini:', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: staffList.length,
+                    itemBuilder: (context, index) {
+                      final staff = staffList[index];
+                      return ListTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        leading: const Icon(LucideIcons.userCheck, color: Colors.deepPurple),
+                        title: Text(staff.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(staff.email, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                        onTap: () => Navigator.pop(context, staff),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (selectedStaff != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Menugaskan ke ${selectedStaff.name}...')));
+        try {
+          await ref.read(ticketListProvider.notifier).assignTicket(
+            ticket.id, 
+            selectedStaff.id, 
+            selectedStaff.name,
+            user?.role.toString().split('.').last.toUpperCase() ?? 'ADMIN'
+          );
+          ref.invalidate(ticketDetailProvider(ticketId));
+          ref.invalidate(dashboardStatsProvider);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ticket assigned successfully!'), backgroundColor: Colors.green));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to assign: $e'), backgroundColor: Colors.red));
+          }
         }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat staff: $e')));
       }
     }
   }
@@ -555,17 +588,19 @@ class _ModernTimelineStepper extends StatelessWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.bold, 
                             fontSize: 15,
-                            color: isLast ? Colors.blue[800] : Colors.black87,
+                            color: isLast 
+                                ? (Theme.of(context).brightness == Brightness.dark ? Colors.blue[300] : Colors.blue[800]) 
+                                : null,
                           )
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(LucideIcons.userCircle2, size: 14, color: Colors.grey[600]),
+                            Icon(LucideIcons.userCircle2, size: 14, color: Colors.grey[500]),
                             const SizedBox(width: 4),
                             Text(
                               event.actorRole, 
-                              style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w500)
+                              style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.w500)
                             ),
                             const Spacer(),
                             Icon(LucideIcons.clock, size: 14, color: Colors.grey[500]),

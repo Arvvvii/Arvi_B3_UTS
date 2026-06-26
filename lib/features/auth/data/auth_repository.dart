@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
@@ -30,16 +33,21 @@ class AuthRepository {
     UserRole role = UserRole.user;
 
     if (profileResponse != null) {
-      if (profileResponse['name'] != null) {
-        name = profileResponse['name'];
+      print('--- [DEBUG AUTH_REPOSITORY] Profile Response: $profileResponse');
+      if (profileResponse['full_name'] != null) {
+        name = profileResponse['full_name'];
+      } else if (profileResponse['username'] != null) {
+        name = profileResponse['username'];
       }
       if (profileResponse['role'] != null) {
         try {
           role = UserRole.values.firstWhere(
-            (e) => e.name == profileResponse['role']
+            (e) => e.name.toLowerCase() == profileResponse['role'].toString().toLowerCase()
           );
         } catch (_) {}
       }
+    } else {
+      print('--- [DEBUG AUTH_REPOSITORY] Profile Response is NULL. RLS Policy issue?');
     }
     
     final user = UserModel(
@@ -76,16 +84,21 @@ class AuthRepository {
     UserRole role = UserRole.user;
 
     if (profileResponse != null) {
-      if (profileResponse['name'] != null) {
-        name = profileResponse['name'];
+      print('--- [DEBUG AUTH_REPOSITORY] Profile Response: $profileResponse');
+      if (profileResponse['full_name'] != null) {
+        name = profileResponse['full_name'];
+      } else if (profileResponse['username'] != null) {
+        name = profileResponse['username'];
       }
       if (profileResponse['role'] != null) {
         try {
           role = UserRole.values.firstWhere(
-            (e) => e.name == profileResponse['role']
+            (e) => e.name.toLowerCase() == profileResponse['role'].toString().toLowerCase()
           );
         } catch (_) {}
       }
+    } else {
+      print('--- [DEBUG AUTH_REPOSITORY] Profile Response is NULL. RLS Policy issue?');
     }
 
     final user = UserModel(
@@ -111,19 +124,30 @@ class AuthRepository {
     final response = await _supabaseClient.auth.signUp(
       email: email,
       password: password,
+      data: {
+        'full_name': name,
+        'username': email,
+      }
     );
     
     if (response.user == null) {
       throw Exception('Registration failed');
     }
 
-    // Auto-create profile in public.profiles table
-    await _supabaseClient.from('profiles').insert({
-      'id': response.user!.id,
-      'full_name': name,
-      'username': email,
-      'role': 'user', // Default role for public registration
-    });
+    try {
+      // Auto-create profile in public.profiles table
+      // Gunakan UPSERT agar tidak error jika trigger Supabase sudah otomatis membuatnya
+      await _supabaseClient.from('profiles').upsert({
+        'id': response.user!.id,
+        'full_name': name,
+        'username': email,
+        'role': 'user', // Default role for public registration
+      });
+    } catch (e) {
+      print('--- [DEBUG AUTH_REPOSITORY] Failed to insert profile manually (RLS/Trigger): $e');
+      // Kita abaikan error ini karena user sudah terdaftar di auth.users
+      // dan kemungkinan besar ada trigger / RLS yang memblokir.
+    }
 
     return UserModel(
       id: response.user!.id,
@@ -133,8 +157,25 @@ class AuthRepository {
     );
   }
 
-  Future<void> resetPassword(String email) async {
-    await _supabaseClient.auth.resetPasswordForEmail(email);
+  Future<void> resetPassword(String email, String newPassword) async {
+    final String baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:8080';
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'new_password': newPassword,
+        }),
+      );
+
+      if (response.statusCode >= 400) {
+        final Map<String, dynamic> errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Gagal mereset password');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
   }
 }
 

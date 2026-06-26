@@ -58,7 +58,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(LucideIcons.layoutTemplate, size: 60, color: Theme.of(context).primaryColor),
+                Image.asset(
+                  'assets/logo/logo_app.png',
+                  height: 150,
+                  fit: BoxFit.contain,
+                ),
                 const SizedBox(height: 32),
                 Text(
                   'Welcome Back',

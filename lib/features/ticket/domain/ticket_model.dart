@@ -114,3 +114,90 @@ class TicketTimeline {
     };
   }
 }
+
+// =============================================================================
+// MODEL BARU v2.0.0
+// =============================================================================
+
+/// CommentModel merepresentasikan komentar pada tiket (tabel public.comments)
+class CommentModel {
+  final String id;
+  final String ticketId;
+  final String authorId;
+  final String content;
+  final DateTime createdAt;
+
+  CommentModel({
+    required this.id,
+    required this.ticketId,
+    required this.authorId,
+    required this.content,
+    required this.createdAt,
+  });
+
+  factory CommentModel.fromJson(Map<String, dynamic> json) {
+    return CommentModel(
+      id: json['id'] ?? '',
+      ticketId: json['ticket_id'] ?? '',
+      authorId: json['author_id'] ?? '',
+      content: json['content'] ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
+    );
+  }
+}
+
+/// TicketHistoryModel merepresentasikan log riwayat aksi pada tiket
+/// (tabel public.ticket_histories, BR-005: Tracking)
+class TicketHistoryModel {
+  final String id;
+  final String ticketId;
+  final String action;
+  final String actorId;
+  final DateTime createdAt;
+
+  TicketHistoryModel({
+    required this.id,
+    required this.ticketId,
+    required this.action,
+    required this.actorId,
+    required this.createdAt,
+  });
+
+  factory TicketHistoryModel.fromJson(Map<String, dynamic> json) {
+    return TicketHistoryModel(
+      id: json['id'] ?? '',
+      ticketId: json['ticket_id'] ?? '',
+      action: json['action'] ?? '',
+      actorId: json['actor_id'] ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
+    );
+  }
+}
+
+/// DashboardStatsModel merepresentasikan statistik tiket dari GET /dashboard/stats
+class DashboardStatsModel {
+  final int open;
+  final int inProgress;
+  final int resolved;
+  final int total;
+
+  DashboardStatsModel({
+    required this.open,
+    required this.inProgress,
+    required this.resolved,
+    required this.total,
+  });
+
+  factory DashboardStatsModel.fromJson(Map<String, dynamic> json) {
+    return DashboardStatsModel(
+      open: json['open'] ?? 0,
+      inProgress: json['in_progress'] ?? 0,
+      resolved: json['resolved'] ?? 0,
+      total: json['total'] ?? 0,
+    );
+  }
+}

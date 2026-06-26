@@ -5,8 +5,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:arvi_b3_uts/features/ticket/presentation/providers/ticket_provider.dart';
 import 'package:arvi_b3_uts/core/theme/glassmorphism.dart';
-import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
-import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
 
 class TicketListScreen extends ConsumerStatefulWidget {
@@ -68,32 +66,23 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
   Widget build(BuildContext context) {
     final ticketsState = ref.watch(ticketListProvider);
     final filter = ref.watch(ticketFilterProvider);
-    final user = ref.watch(authProvider).value;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tickets'),
       ),
-      floatingActionButton: user?.role == UserRole.user
-          ? FloatingActionButton(
+      // [v2.0.0] FAB Create Ticket sekarang visible untuk SEMUA role
+      floatingActionButton: FloatingActionButton(
               onPressed: () => context.push('/tickets/create'),
               backgroundColor: Colors.blue,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: const Icon(LucideIcons.plus, color: Colors.white),
-            )
-          : null,
+            ),
       body: ticketsState.when(
         data: (tickets) {
+          // [v2.0.0] Filter RBAC sudah dilakukan oleh backend (GET /tickets).
+          // Client hanya perlu filter berdasarkan status yang dipilih user.
           List<TicketModel> filteredTickets = tickets;
-          
-          if (user != null) {
-            if (user.role == UserRole.user) {
-              filteredTickets = filteredTickets.where((t) => t.createdBy == user.id || t.createdBy == user.email).toList();
-            } else if (user.role == UserRole.helpdesk) {
-              filteredTickets = filteredTickets.where((t) => t.assignedTo == user.id).toList();
-            }
-            // Admin sees all, no filter needed.
-          }
 
           if (filter == 'Open') {
             filteredTickets = filteredTickets.where((t) => t.status == TicketStatus.open).toList();

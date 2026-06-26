@@ -6,7 +6,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:arvi_b3_uts/features/ticket/presentation/providers/ticket_provider.dart';
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
-import 'package:arvi_b3_uts/core/theme/glassmorphism.dart';
 import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
 import 'package:uuid/uuid.dart';
 

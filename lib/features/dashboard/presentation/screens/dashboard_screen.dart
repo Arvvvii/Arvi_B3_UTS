@@ -15,36 +15,15 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final ticketState = ref.watch(ticketListProvider);
-
-    int total = 0;
-    int resolved = 0;
-    int inProgress = 0;
-    int open = 0;
-    List<TicketModel> filteredTickets = [];
-
-    if (ticketState.value != null && authState.value != null) {
-      final role = authState.value!.role;
-      final userId = authState.value!.id;
-      final userEmail = authState.value!.email;
-
-      filteredTickets = ticketState.value!.where((t) {
-        if (role == UserRole.admin) return true;
-        if (role == UserRole.helpdesk) return t.assignedTo == userId;
-        // Asumsi backend menyimpan UUID user di created_by
-        return t.createdBy == userId || t.createdBy == userEmail; 
-      }).toList();
-
-      total = filteredTickets.length;
-      resolved = filteredTickets.where((t) => t.status == TicketStatus.resolved).length;
-      inProgress = filteredTickets.where((t) => t.status == TicketStatus.inProgress).length;
-      open = filteredTickets.where((t) => t.status == TicketStatus.open).length;
-    }
+    // [v2.0.0] Stats dari backend (RBAC filtered)
+    final statsAsync = ref.watch(dashboardStatsProvider);
 
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             await ref.read(ticketListProvider.notifier).loadInitial();
+            ref.invalidate(dashboardStatsProvider);
           },
           child: ListView(
             padding: const EdgeInsets.all(24.0),
@@ -78,80 +57,97 @@ class DashboardScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              if (ticketState.isLoading)
-                const Center(child: CircularProgressIndicator())
-              else if (ticketState.hasError)
-                Container(
+
+              // ============================================================
+              // [v2.0.0] BENTO GRID STATS — Sekarang menggunakan data dari
+              // backend (GET /dashboard/stats) yang sudah RBAC filtered.
+              // Visible untuk SEMUA role (user, helpdesk, admin).
+              // ============================================================
+              statsAsync.when(
+                data: (stats) => Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _BentoCard(
+                            title: 'Total Tickets',
+                            value: '${stats.total}',
+                            icon: LucideIcons.layers,
+                            color: Colors.blue,
+                            onTap: () {
+                              ref.read(ticketFilterProvider.notifier).state = 'All';
+                              context.go('/tickets');
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _BentoCard(
+                            title: 'Resolved',
+                            value: '${stats.resolved}',
+                            icon: LucideIcons.checkCircle,
+                            color: Colors.green,
+                            onTap: () {
+                              ref.read(ticketFilterProvider.notifier).state = 'Resolved';
+                              context.go('/tickets');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _BentoCard(
+                            title: 'In Progress',
+                            value: '${stats.inProgress}',
+                            icon: LucideIcons.loader,
+                            color: Colors.orange,
+                            onTap: () {
+                              ref.read(ticketFilterProvider.notifier).state = 'In Progress';
+                              context.go('/tickets');
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _BentoCard(
+                            title: 'Open',
+                            value: '${stats.open}',
+                            icon: LucideIcons.alertCircle,
+                            color: Colors.red,
+                            onTap: () {
+                              ref.read(ticketFilterProvider.notifier).state = 'Open';
+                              context.go('/tickets');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                  child: const Text('Failed to load tickets API. Start Golang Server at http://10.0.2.2:8080.', style: TextStyle(color: Colors.red)),
-                )
-              else
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _BentoCard(
-                              title: 'Total Tickets',
-                              value: '$total',
-                              icon: LucideIcons.layers,
-                              color: Colors.blue,
-                              onTap: () {
-                                ref.read(ticketFilterProvider.notifier).state = 'All';
-                                context.go('/tickets');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _BentoCard(
-                              title: 'Resolved',
-                              value: '$resolved',
-                              icon: LucideIcons.checkCircle,
-                              color: Colors.green,
-                              onTap: () {
-                                ref.read(ticketFilterProvider.notifier).state = 'Resolved';
-                                context.go('/tickets');
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _BentoCard(
-                              title: 'In Progress',
-                              value: '$inProgress',
-                              icon: LucideIcons.loader,
-                              color: Colors.orange,
-                              onTap: () {
-                                ref.read(ticketFilterProvider.notifier).state = 'In Progress';
-                                context.go('/tickets');
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _BentoCard(
-                              title: 'Open',
-                              value: '$open',
-                              icon: LucideIcons.alertCircle,
-                              color: Colors.red,
-                              onTap: () {
-                                ref.read(ticketFilterProvider.notifier).state = 'Open';
-                                context.go('/tickets');
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  child: Text(
+                    'Failed to load stats. Start Golang Server at http://10.0.2.2:8080.\nError: $e',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 32),
               
+              // ============================================================
+              // [v2.0.0] CREATE TICKET BUTTON
+              // Sekarang visible untuk SEMUA role (user, helpdesk, admin),
+              // bukan hanya user saja.
+              // ============================================================
               ElevatedButton.icon(
                 onPressed: () => context.push('/tickets/create'),
                 icon: const Icon(LucideIcons.plus),
@@ -164,43 +160,70 @@ class DashboardScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               if (!ticketState.isLoading && ticketState.value != null)
-              GlassmorphismCard(
-                padding: const EdgeInsets.all(0),
-                child: filteredTickets.isEmpty 
-                  ? const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No recent activity', style: TextStyle(color: Colors.grey))))
-                  : ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredTickets.take(3).length, // Use filtered list
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final ticket = filteredTickets[index];
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => context.push('/tickets/${ticket.id}'),
-                        child: ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(LucideIcons.fileText, color: Theme.of(context).primaryColor, size: 20),
-                          ),
-                          title: Text(ticket.title, style: const TextStyle(fontWeight: FontWeight.w600), maxLines: 1),
-                          subtitle: Text('Status: ${ticket.status.name}'),
-                          trailing: const Text('View', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+              _buildRecentActivity(context, ref, ticketState, authState),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRecentActivity(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<TicketModel>> ticketState,
+    AsyncValue<UserModel?> authState,
+  ) {
+    // Tampilkan 3 tiket terbaru (backend sudah RBAC filtered)
+    final recentTickets = ticketState.value!.take(3).toList();
+
+    return GlassmorphismCard(
+      padding: const EdgeInsets.all(0),
+      child: recentTickets.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Text('No recent activity',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+            )
+          : ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: recentTickets.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final ticket = recentTickets[index];
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => context.push('/tickets/${ticket.id}'),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .primaryColor
+                              .withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(LucideIcons.fileText,
+                            color: Theme.of(context).primaryColor,
+                            size: 20),
+                      ),
+                      title: Text(ticket.title,
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w600),
+                          maxLines: 1),
+                      subtitle: Text('Status: ${ticket.status.name}'),
+                      trailing: const Text('View',
+                          style:
+                              TextStyle(color: Colors.grey, fontSize: 12)),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

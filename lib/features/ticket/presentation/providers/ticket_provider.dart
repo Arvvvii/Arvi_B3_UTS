@@ -5,7 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
 import 'package:arvi_b3_uts/features/ticket/data/ticket_repository.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
+
+// =============================================================================
+// TICKET LIST NOTIFIER — State management utama untuk daftar tiket
+// =============================================================================
 
 class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
   final TicketRepository _repository;
@@ -95,6 +99,7 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     state = AsyncValue.data([ticketToCreate, ...currentList]);
     await _saveExtraData(ticketToCreate);
   }
+
   Future<void> updateTicketStatus(String id, TicketStatus newStatus, String actorRole) async {
     final currentList = state.value ?? [];
     final ticketIndex = currentList.indexWhere((t) => t.id == id);
@@ -129,6 +134,9 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     final ticketIndex = currentList.indexWhere((t) => t.id == id);
     if (ticketIndex == -1) return;
 
+    // [v2.0.0] Kirim komentar ke backend via POST /tickets/:id/comments
+    await _repository.createComment(id, comment);
+
     final targetTicket = currentList[ticketIndex];
     
     final newTimelineEvent = TicketTimeline(
@@ -149,28 +157,31 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     await _saveExtraData(updatedTicket);
   }
 
-  Future<void> autoAssignTicket(String id, String targetRole, String actorRole) async {
+  /// [NEW v2.0.0] Hapus tiket (Admin only)
+  Future<void> deleteTicket(String id) async {
+    await _repository.deleteTicket(id);
+    
+    // Hapus dari state lokal
+    final currentList = state.value ?? [];
+    final updatedList = currentList.where((t) => t.id != id).toList();
+    state = AsyncValue.data(updatedList);
+
+    // Hapus extra data lokal
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('ticket_extra_$id');
+  }
+
+  Future<void> assignTicket(String id, String staffId, String staffName, String actorRole) async {
     final currentList = state.value ?? [];
     final ticketIndex = currentList.indexWhere((t) => t.id == id);
     if (ticketIndex == -1) return;
-
-    final staffList = await _repository.getStaffByRole(targetRole);
-    if (staffList.isEmpty) {
-      throw Exception('Belum ada staff dengan role: $targetRole');
-    }
-    
-    // Pick random staff
-    final selectedStaff = staffList[DateTime.now().millisecondsSinceEpoch % staffList.length];
-    
-    final staffId = selectedStaff['id'] as String;
-    final staffName = selectedStaff['full_name'] as String;
 
     final targetTicket = currentList[ticketIndex];
     
     // Add to timeline
     final newTimelineEvent = TicketTimeline(
       id: 'tml_${DateTime.now().millisecondsSinceEpoch}',
-      description: 'Ticket auto-assigned to $staffName ($targetRole)',
+      description: 'Ticket assigned to $staffName',
       timestamp: DateTime.now(),
       actorRole: actorRole,
     );
@@ -188,9 +199,54 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     state = AsyncValue.data(updatedList);
     await _saveExtraData(updatedTicket);
   }
+
+  /// [NEW v2.0.0] Handler untuk Supabase Realtime event.
+  /// Dipanggil saat ada INSERT/UPDATE/DELETE pada tabel tickets.
+  void handleRealtimeEvent(Map<String, dynamic> newRecord, Map<String, dynamic> oldRecord, String eventType) {
+    final currentList = state.value ?? [];
+
+    switch (eventType) {
+      case 'INSERT':
+        final newTicket = TicketModel.fromJson(newRecord);
+        // Cek apakah tiket sudah ada (untuk menghindari duplikasi)
+        if (!currentList.any((t) => t.id == newTicket.id)) {
+          state = AsyncValue.data([newTicket, ...currentList]);
+        }
+        break;
+
+      case 'UPDATE':
+        final updatedTicket = TicketModel.fromJson(newRecord);
+        final updatedList = currentList.map((t) {
+          if (t.id == updatedTicket.id) {
+            // Pertahankan timeline lokal jika backend tidak mengirimnya
+            return updatedTicket.copyWith(
+              timeline: updatedTicket.timeline.isEmpty ? t.timeline : updatedTicket.timeline,
+              assignedTo: updatedTicket.assignedTo?.isNotEmpty == true ? updatedTicket.assignedTo : t.assignedTo,
+            );
+          }
+          return t;
+        }).toList();
+        state = AsyncValue.data(updatedList);
+        break;
+
+      case 'DELETE':
+        final deletedId = oldRecord['id'] ?? '';
+        final filteredList = currentList.where((t) => t.id != deletedId).toList();
+        state = AsyncValue.data(filteredList);
+        break;
+    }
+  }
 }
 
+// =============================================================================
+// PROVIDERS
+// =============================================================================
+
 final ticketListProvider = StateNotifierProvider<TicketListNotifier, AsyncValue<List<TicketModel>>>((ref) {
+  // [v2.0.0] Watch authProvider agar saat ganti user (login/logout), 
+  // TicketListNotifier otomatis ter-reset dan load data baru milik user aktif.
+  ref.watch(authProvider);
+  
   final repo = ref.watch(ticketRepositoryProvider);
   return TicketListNotifier(repo);
 });
@@ -215,3 +271,25 @@ final ticketDetailProvider = FutureProvider.family<TicketModel?, String>((ref, i
 });
 
 final ticketFilterProvider = StateProvider<String>((ref) => 'All');
+
+/// [NEW v2.0.0] Provider untuk dashboard stats dari backend (RBAC filtered).
+final dashboardStatsProvider = FutureProvider<DashboardStatsModel>((ref) async {
+  // [v2.0.0] Watch authProvider agar saat ganti user (login/logout), 
+  // dashboard stats otomatis ter-reset dan load data baru milik user aktif.
+  ref.watch(authProvider);
+  
+  final repo = ref.watch(ticketRepositoryProvider);
+  return repo.getDashboardStats();
+});
+
+/// [NEW v2.0.0] Provider untuk komentar per tiket.
+final ticketCommentsProvider = FutureProvider.family<List<CommentModel>, String>((ref, ticketId) async {
+  final repo = ref.watch(ticketRepositoryProvider);
+  return repo.getComments(ticketId);
+});
+
+/// [NEW v2.0.0] Provider untuk riwayat aksi tiket (tracking timeline).
+final ticketHistoriesProvider = FutureProvider.family<List<TicketHistoryModel>, String>((ref, ticketId) async {
+  final repo = ref.watch(ticketRepositoryProvider);
+  return repo.getTicketHistories(ticketId);
+});
