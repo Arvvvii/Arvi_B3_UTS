@@ -6,6 +6,42 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:arvi_b3_uts/features/ticket/domain/ticket_model.dart';
 import 'package:arvi_b3_uts/features/ticket/data/ticket_repository.dart';
 import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// =============================================================================
+// TICKET FILTER MODEL — Multi-criteria filter (Status + Priority)
+// =============================================================================
+
+class TicketFilter {
+  final Set<TicketStatus> statuses;
+  final Set<String> priorities;
+
+  const TicketFilter({
+    this.statuses = const {},
+    this.priorities = const {},
+  });
+
+  bool get isActive => statuses.isNotEmpty || priorities.isNotEmpty;
+
+  TicketFilter copyWith({
+    Set<TicketStatus>? statuses,
+    Set<String>? priorities,
+  }) {
+    return TicketFilter(
+      statuses: statuses ?? this.statuses,
+      priorities: priorities ?? this.priorities,
+    );
+  }
+
+  /// Applies filter to a list of tickets. Empty sets = show all.
+  List<TicketModel> apply(List<TicketModel> tickets) {
+    return tickets.where((t) {
+      final matchesStatus = statuses.isEmpty || statuses.contains(t.status);
+      final matchesPriority = priorities.isEmpty || priorities.contains(t.priority);
+      return matchesStatus && matchesPriority;
+    }).toList();
+  }
+}
 
 // =============================================================================
 // TICKET LIST NOTIFIER — State management utama untuk daftar tiket
@@ -136,25 +172,6 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
     // [v2.0.0] Kirim komentar ke backend via POST /tickets/:id/comments
     await _repository.createComment(id, comment);
-
-    final targetTicket = currentList[ticketIndex];
-    
-    final newTimelineEvent = TicketTimeline(
-      id: 'tml_${DateTime.now().millisecondsSinceEpoch}',
-      description: comment,
-      timestamp: DateTime.now(),
-      actorRole: actorRole,
-    );
-
-    final updatedTicket = targetTicket.copyWith(
-      timeline: [...targetTicket.timeline, newTimelineEvent],
-    );
-
-    // Save to master list state locally
-    final updatedList = List<TicketModel>.from(currentList);
-    updatedList[ticketIndex] = updatedTicket;
-    state = AsyncValue.data(updatedList);
-    await _saveExtraData(updatedTicket);
   }
 
   /// [NEW v2.0.0] Hapus tiket (Admin only)
@@ -171,6 +188,8 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
     await prefs.remove('ticket_extra_$id');
   }
 
+  /// [UPDATED v3.0.0] Assign staff + otomatis ubah status ke in_progress
+  /// jika tiket masih berstatus open (Business Logic Automation).
   Future<void> assignTicket(String id, String staffId, String staffName, String actorRole) async {
     final currentList = state.value ?? [];
     final ticketIndex = currentList.indexWhere((t) => t.id == id);
@@ -178,17 +197,34 @@ class TicketListNotifier extends StateNotifier<AsyncValue<List<TicketModel>>> {
 
     final targetTicket = currentList[ticketIndex];
     
-    // Add to timeline
-    final newTimelineEvent = TicketTimeline(
-      id: 'tml_${DateTime.now().millisecondsSinceEpoch}',
-      description: 'Ticket assigned to $staffName',
-      timestamp: DateTime.now(),
-      actorRole: actorRole,
-    );
+    // Timeline: Assignment event
+    final timelineEvents = <TicketTimeline>[
+      TicketTimeline(
+        id: 'tml_${DateTime.now().millisecondsSinceEpoch}',
+        description: 'Ticket assigned to $staffName',
+        timestamp: DateTime.now(),
+        actorRole: actorRole,
+      ),
+    ];
+
+    // [AUTOMATION] Jika tiket masih open, otomatis set ke in_progress
+    TicketStatus newStatus = targetTicket.status;
+    if (targetTicket.status == TicketStatus.open) {
+      newStatus = TicketStatus.inProgress;
+      timelineEvents.add(
+        TicketTimeline(
+          id: 'tml_${DateTime.now().millisecondsSinceEpoch + 1}',
+          description: 'Status changed to in_progress (auto)',
+          timestamp: DateTime.now(),
+          actorRole: 'SYSTEM',
+        ),
+      );
+    }
 
     final updatedTicket = targetTicket.copyWith(
       assignedTo: staffId,
-      timeline: [...targetTicket.timeline, newTimelineEvent],
+      status: newStatus,
+      timeline: [...targetTicket.timeline, ...timelineEvents],
     );
 
     await _repository.updateTicket(updatedTicket);
@@ -252,25 +288,78 @@ final ticketListProvider = StateNotifierProvider<TicketListNotifier, AsyncValue<
 });
 
 final ticketDetailProvider = FutureProvider.family<TicketModel?, String>((ref, id) async {
+  final supabase = Supabase.instance.client;
+  
+  final channel = supabase.channel('ticket_detail_$id')
+    .onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'tickets',
+      callback: (payload) {
+        if (payload.newRecord['id'] == id) {
+          ref.invalidateSelf();
+        }
+      }
+    )
+    .onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'ticket_histories',
+      callback: (payload) {
+        if (payload.newRecord['ticket_id'] == id) {
+          ref.invalidateSelf();
+        }
+      }
+    )
+    .subscribe();
+
+  ref.onDispose(() {
+    channel.unsubscribe();
+  });
+
   final repo = ref.watch(ticketRepositoryProvider);
   final fetchedTicket = await repo.getTicketById(id);
   
+  if (fetchedTicket == null) return null;
+
+  // FETCH COMMENTS AND HISTORIES FOR ALL ROLES!
+  List<TicketTimeline> combinedTimeline = [];
+  try {
+    final histories = await repo.getTicketHistories(id);
+    for (var h in histories) {
+      if (h.action.toLowerCase().contains('comment added')) continue;
+      combinedTimeline.add(TicketTimeline(
+        id: h.id,
+        description: h.action,
+        timestamp: h.createdAt,
+        actorRole: h.actorId.isEmpty ? 'SYSTEM' : 'STAFF', 
+      ));
+    }
+  } catch (_) {}
+
+  // Comments will be fetched via StreamProvider for Realtime UI
+
+  // Sort timeline by timestamp
+  combinedTimeline.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
   // Ambil state lokal dari master list
   final listState = ref.read(ticketListProvider).value;
   final localTicket = listState?.cast<TicketModel?>().firstWhere((t) => t?.id == id, orElse: () => null);
 
-  if (fetchedTicket != null && localTicket != null) {
-    // Gabungkan state: Jika backend mengembalikan null untuk assignedTo, gunakan dari local state
-    return fetchedTicket.copyWith(
-      assignedTo: fetchedTicket.assignedTo?.isNotEmpty == true ? fetchedTicket.assignedTo : localTicket.assignedTo,
-      timeline: fetchedTicket.timeline.isEmpty ? localTicket.timeline : fetchedTicket.timeline,
-    );
+  // Merge the timeline properly
+  List<TicketTimeline> finalTimeline = combinedTimeline.isNotEmpty ? combinedTimeline : fetchedTicket.timeline;
+  if (finalTimeline.isEmpty && localTicket != null) {
+      finalTimeline = localTicket.timeline;
   }
 
-  return fetchedTicket;
+  return fetchedTicket.copyWith(
+    assignedTo: fetchedTicket.assignedTo?.isNotEmpty == true ? fetchedTicket.assignedTo : localTicket?.assignedTo,
+    timeline: finalTimeline,
+  );
 });
 
-final ticketFilterProvider = StateProvider<String>((ref) => 'All');
+/// [UPDATED v3.0.0] Multi-criteria filter provider (Status + Priority).
+final ticketFilterProvider = StateProvider<TicketFilter>((ref) => const TicketFilter());
 
 /// [NEW v2.0.0] Provider untuk dashboard stats dari backend (RBAC filtered).
 final dashboardStatsProvider = FutureProvider<DashboardStatsModel>((ref) async {
@@ -286,6 +375,24 @@ final dashboardStatsProvider = FutureProvider<DashboardStatsModel>((ref) async {
 final ticketCommentsProvider = FutureProvider.family<List<CommentModel>, String>((ref, ticketId) async {
   final repo = ref.watch(ticketRepositoryProvider);
   return repo.getComments(ticketId);
+});
+
+/// [NEW v3.0.0] Realtime Stream Provider untuk komentar per tiket.
+final ticketCommentsRealtimeProvider = StreamProvider.family<List<TicketTimeline>, String>((ref, ticketId) {
+  final supabase = Supabase.instance.client;
+  return supabase
+      .from('comments')
+      .stream(primaryKey: ['id'])
+      .eq('ticket_id', ticketId)
+      .order('created_at', ascending: true)
+      .map((data) {
+        return data.map((c) => TicketTimeline(
+          id: c['id'],
+          description: c['content'],
+          timestamp: DateTime.parse(c['created_at']).toLocal(),
+          actorRole: 'USER/STAFF',
+        )).toList();
+      });
 });
 
 /// [NEW v2.0.0] Provider untuk riwayat aksi tiket (tracking timeline).

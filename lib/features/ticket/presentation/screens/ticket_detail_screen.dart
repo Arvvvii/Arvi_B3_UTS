@@ -9,6 +9,7 @@ import 'package:arvi_b3_uts/features/auth/presentation/providers/auth_provider.d
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:arvi_b3_uts/features/dashboard/data/user_repository.dart';
 import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class TicketDetailScreen extends ConsumerWidget {
   final String ticketId;
@@ -57,7 +58,9 @@ class TicketDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ticketAsync = ref.watch(ticketDetailProvider(ticketId));
+    final colorScheme = Theme.of(context).colorScheme;
+    final ticketState = ref.watch(ticketDetailProvider(ticketId));
+    final commentsStream = ref.watch(ticketCommentsRealtimeProvider(ticketId));
     final user = ref.watch(authProvider).value;
     final isUser = user?.role.toString().split('.').last == 'user';
 
@@ -71,16 +74,21 @@ class TicketDetailScreen extends ConsumerWidget {
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
-      body: ticketAsync.when(
+      body: ticketState.when(
         data: (ticket) {
           if (ticket == null) return const Center(child: Text('Ticket not found', style: TextStyle(fontSize: 18)));
 
           return Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-                  child: Column(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    return await ref.refresh(ticketDetailProvider(ticketId).future);
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Main Card
@@ -144,7 +152,7 @@ class TicketDetailScreen extends ConsumerWidget {
                                   const Icon(LucideIcons.calendar, size: 14, color: Colors.grey),
                                   const SizedBox(width: 4),
                                   Text(
-                                    DateFormat('MMM dd, yyyy \u2022 HH:mm').format(ticket.createdAt),
+                                    DateFormat('MMM dd, yyyy \u2022 HH:mm').format(ticket.createdAt.toLocal()),
                                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                                   ),
                                 ],
@@ -204,16 +212,40 @@ class TicketDetailScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 12),
                               if (ticket.attachedFilePath != null && ticket.attachedFilePath != 'EMPTY' && ticket.attachedFilePath!.isNotEmpty)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    ticket.attachedFilePath!,
-                                    width: double.infinity,
-                                    height: 200,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => _buildAttachmentPlaceholder(),
-                                  ),
-                                )
+                                ticket.attachedFilePath!.toLowerCase().contains('.pdf')
+                                ? InkWell(
+                                    onTap: () => launchUrlString(ticket.attachedFilePath!),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(vertical: 24),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.red.withOpacity(0.2), style: BorderStyle.solid),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          const Icon(Icons.picture_as_pdf, size: 44, color: Colors.red),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Buka Lampiran Dokumen PDF', 
+                                            style: TextStyle(color: Colors.red[700], fontSize: 14, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      ticket.attachedFilePath!,
+                                      width: double.infinity,
+                                      height: 200,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => _buildAttachmentPlaceholder(),
+                                    ),
+                                  )
                               else
                                 _buildAttachmentPlaceholder(),
                             ],
@@ -240,11 +272,20 @@ class TicketDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 20),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: _ModernTimelineStepper(timelineEvents: ticket.timeline),
+                        child: Builder(
+                          builder: (context) {
+                            final comments = commentsStream.value ?? [];
+                            final mergedTimeline = List<TicketTimeline>.from(ticket.timeline);
+                            mergedTimeline.addAll(comments);
+                            mergedTimeline.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+                            return _ModernTimelineStepper(timelineEvents: mergedTimeline);
+                          }
+                        ),
                       ),
                       const SizedBox(height: 24),
                     ],
                   ),
+                ),
                 ),
               ),
               
@@ -302,22 +343,42 @@ class TicketDetailScreen extends ConsumerWidget {
                       
                       // Fitur Admin/Helpdesk
                       if (!isUser) ...[
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showUpdateStatusDialog(context, ref, ticket, user),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              backgroundColor: Colors.deepPurple,
-                              foregroundColor: Colors.white,
+                        if (ticket.status == TicketStatus.inProgress) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Resolving ticket...')));
+                                try {
+                                  await ref.read(ticketListProvider.notifier).updateTicketStatus(
+                                    ticket.id, 
+                                    TicketStatus.resolved, 
+                                    user?.role.toString().split('.').last.toUpperCase() ?? 'ADMIN'
+                                  );
+                                  ref.invalidate(ticketDetailProvider(ticketId));
+                                  ref.invalidate(dashboardStatsProvider);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ticket resolved successfully!'), backgroundColor: Colors.green));
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to resolve: $e'), backgroundColor: Colors.red));
+                                  }
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
+                              icon: const Icon(LucideIcons.checkCircle2),
+                              label: const Text('Resolve Ticket', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
-                            icon: const Icon(LucideIcons.edit3),
-                            label: const Text('Update Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
-                        ),
-                        if (ticket.assignedTo == null || ticket.assignedTo!.isEmpty) ...[
+                        ],
+                        if (ticket.status == TicketStatus.open && (ticket.assignedTo == null || ticket.assignedTo!.isEmpty)) ...[
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
@@ -348,53 +409,7 @@ class TicketDetailScreen extends ConsumerWidget {
     );
   }
 
-  // Hapus Fungsi State Wiping ref.invalidate(ticketListProvider);
-  Future<void> _showUpdateStatusDialog(BuildContext context, WidgetRef ref, TicketModel ticket, dynamic user) async {
-    final newStatus = await showDialog<TicketStatus>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Update Status', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: TicketStatus.values.map((status) {
-            return ListTile(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              leading: Icon(
-                status == TicketStatus.resolved ? LucideIcons.checkCircle :
-                status == TicketStatus.inProgress ? LucideIcons.loader : LucideIcons.circle,
-                color: _getStatusColor(status),
-              ),
-              title: Text(status.name.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w600)),
-              onTap: () => Navigator.pop(context, status),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-
-    if (newStatus != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Updating status...')));
-      try {
-        await ref.read(ticketListProvider.notifier).updateTicketStatus(
-          ticket.id, 
-          newStatus, 
-          user?.role.toString().split('.').last.toUpperCase() ?? 'ADMIN'
-        );
-        ref.invalidate(ticketDetailProvider(ticketId));
-        ref.invalidate(dashboardStatsProvider);
-        // KUNCI: Kita mematikan invalidate(ticketListProvider) agar Timeline & Assigned Staff LOKAL tidak lenyap!
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status updated successfully!'), backgroundColor: Colors.green));
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e'), backgroundColor: Colors.red));
-        }
-      }
-    }
-  }
-
+  // Removed _showUpdateStatusDialog
   Future<void> _showAddCommentDialog(BuildContext context, WidgetRef ref, TicketModel ticket, dynamic user) async {
     final controller = TextEditingController();
     final comment = await showDialog<String>(context: context, builder: (context) {
@@ -426,13 +441,12 @@ class TicketDetailScreen extends ConsumerWidget {
           comment, 
           user?.role.toString().split('.').last.toUpperCase() ?? 'USER'
       );
-      // Refresh UI to show the new comment!
+      ref.invalidate(ticketCommentsRealtimeProvider(ticketId));
       ref.invalidate(ticketDetailProvider(ticketId));
     }
   }
 
   Future<void> _showAssignDialog(BuildContext context, WidgetRef ref, TicketModel ticket, dynamic user) async {
-    // Show loading snackbar instead of blocking dialog
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Memuat daftar staff...'), duration: Duration(milliseconds: 500)),
     );
@@ -515,8 +529,24 @@ class _ModernTimelineStepper extends StatelessWidget {
 
   const _ModernTimelineStepper({required this.timelineEvents});
 
+  String _cleanDescription(String desc) {
+    if (desc.contains('Ticket assigned to')) {
+      return 'Ticket assigned to Helpdesk Technician';
+    }
+    return desc;
+  }
+
+  String _getFriendlyRole(String role) {
+    final upper = role.toUpperCase();
+    if (upper == 'ADMIN') return 'System Administrator';
+    if (upper == 'STAFF' || upper == 'HELPDESK') return 'Technical Support';
+    if (upper == 'SYSTEM') return 'System';
+    return 'Reporter';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (timelineEvents.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
@@ -557,11 +587,11 @@ class _ModernTimelineStepper extends StatelessWidget {
                     height: 16,
                     margin: const EdgeInsets.only(top: 4),
                     decoration: BoxDecoration(
-                      color: isLast ? Colors.blue : Colors.grey[400], 
+                      color: isLast ? colorScheme.primary : Colors.grey[400], 
                       shape: BoxShape.circle, 
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: [
-                        BoxShadow(color: (isLast ? Colors.blue : Colors.grey).withOpacity(0.3), blurRadius: 4)
+                        BoxShadow(color: (isLast ? colorScheme.primary : Colors.grey).withOpacity(0.3), blurRadius: 4)
                       ]
                     ),
                   ),
@@ -576,38 +606,36 @@ class _ModernTimelineStepper extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isLast ? Colors.blue.withOpacity(0.05) : Colors.transparent,
+                      color: isLast ? colorScheme.primary.withOpacity(0.05) : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isLast ? Colors.blue.withOpacity(0.2) : Colors.grey.withOpacity(0.2)),
+                      border: Border.all(color: isLast ? colorScheme.primary.withOpacity(0.2) : Colors.grey.withOpacity(0.2)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          event.description, 
+                          _cleanDescription(event.description), 
                           style: TextStyle(
                             fontWeight: FontWeight.bold, 
                             fontSize: 15,
-                            color: isLast 
-                                ? (Theme.of(context).brightness == Brightness.dark ? Colors.blue[300] : Colors.blue[800]) 
-                                : null,
+                            color: isLast ? colorScheme.primary : colorScheme.onSurface,
                           )
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Icon(LucideIcons.userCircle2, size: 14, color: Colors.grey[500]),
+                            Icon(LucideIcons.userCircle2, size: 14, color: colorScheme.outline),
                             const SizedBox(width: 4),
                             Text(
-                              event.actorRole, 
-                              style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.w500)
+                              _getFriendlyRole(event.actorRole), 
+                              style: TextStyle(color: colorScheme.outline, fontSize: 13, fontWeight: FontWeight.w500)
                             ),
                             const Spacer(),
-                            Icon(LucideIcons.clock, size: 14, color: Colors.grey[500]),
+                            Icon(LucideIcons.clock, size: 14, color: colorScheme.outline),
                             const SizedBox(width: 4),
                             Text(
-                              DateFormat('MMM dd, HH:mm').format(event.timestamp), 
-                              style: TextStyle(color: Colors.grey[500], fontSize: 12)
+                              DateFormat('MMM dd, HH:mm').format(event.timestamp.toLocal()), 
+                              style: TextStyle(color: colorScheme.outline, fontSize: 12)
                             ),
                           ],
                         ),

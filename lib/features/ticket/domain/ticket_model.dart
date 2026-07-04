@@ -5,6 +5,7 @@ class TicketModel {
   final String title;
   final String description;
   final TicketStatus status;
+  final String priority; // 'high', 'medium', 'low'
   final DateTime createdAt;
   final String createdBy; // User Name
   final String? assignedTo; // Admin/Helpdesk Name
@@ -16,6 +17,7 @@ class TicketModel {
     required this.title,
     required this.description,
     required this.status,
+    this.priority = 'medium',
     required this.createdAt,
     required this.createdBy,
     this.assignedTo,
@@ -25,6 +27,7 @@ class TicketModel {
 
   TicketModel copyWith({
     TicketStatus? status,
+    String? priority,
     String? assignedTo,
     List<TicketTimeline>? timeline,
     String? attachedFilePath,
@@ -34,6 +37,7 @@ class TicketModel {
       title: title,
       description: description,
       status: status ?? this.status,
+      priority: priority ?? this.priority,
       createdAt: createdAt,
       createdBy: createdBy,
       assignedTo: assignedTo ?? this.assignedTo,
@@ -48,6 +52,7 @@ class TicketModel {
       'title': title,
       'description': description,
       'status': status == TicketStatus.inProgress ? 'in_progress' : status.name.toLowerCase(),
+      'priority': priority,
       'created_at': createdAt.toIso8601String(),
       'created_by': createdBy,
       'assigned_to': assignedTo,
@@ -62,6 +67,7 @@ class TicketModel {
       title: json['title'] ?? '',
       description: json['description'] ?? '',
       status: _parseStatus(json['status']),
+      priority: _parsePriority(json['priority']),
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
       createdBy: json['created_by'] ?? '',
       assignedTo: json['assigned_to'] ?? json['assignedTo'],
@@ -79,6 +85,15 @@ class TicketModel {
       case 'resolved': return TicketStatus.resolved;
       case 'open':
       default: return TicketStatus.open;
+    }
+  }
+
+  static String _parsePriority(String? priority) {
+    switch (priority?.toLowerCase()) {
+      case 'high': return 'high';
+      case 'low': return 'low';
+      case 'medium':
+      default: return 'medium';
     }
   }
 }

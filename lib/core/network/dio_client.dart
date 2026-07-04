@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final dioProvider = Provider<Dio>((ref) {
+  final baseUrl = dotenv.env['BACKEND_URL'] ?? 'http://10.0.2.2:8080';
+
   final dio = Dio(
     BaseOptions(
-      baseUrl: 'https://api.example.com/v1', // Mock URL
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       contentType: 'application/json',
@@ -15,8 +18,9 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('auth_token');
+        // Ambil token dari Supabase session (single source of truth)
+        final session = Supabase.instance.client.auth.currentSession;
+        final token = session?.accessToken;
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }

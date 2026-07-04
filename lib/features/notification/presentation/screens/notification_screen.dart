@@ -81,15 +81,24 @@ class NotificationScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationScreenState extends ConsumerState<NotificationScreen> {
-  // Realtime listener sudah dipindahkan ke RealtimeService (global)
-  // Tidak perlu setup/dispose channel di sini lagi
+  @override
+  void initState() {
+    super.initState();
+    // Trigger fetch agar data dari API benar-benar ditarik jika masih kosong
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ticketsState = ref.read(ticketListProvider);
+      if (ticketsState.value == null || ticketsState.value!.isEmpty) {
+        ref.read(ticketListProvider.notifier).loadInitial();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final notifications = ref.watch(realtimeNotificationProvider);
 
     // Fallback: jika belum ada notif realtime, tampilkan dari timeline lokal
-    List<RealtimeNotification> displayList = notifications;
+    List<RealtimeNotification> displayList = List.from(notifications);
     if (displayList.isEmpty) {
       final ticketsState = ref.watch(ticketListProvider);
       if (ticketsState.value != null) {
@@ -220,7 +229,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  DateFormat('dd MMM yyyy • HH:mm').format(notif.time),
+                                  DateFormat('dd MMM yyyy • HH:mm').format(notif.time.toLocal()),
                                   style: const TextStyle(color: Colors.grey, fontSize: 11),
                                 ),
                               ],

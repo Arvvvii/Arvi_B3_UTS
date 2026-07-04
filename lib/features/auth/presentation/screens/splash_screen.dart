@@ -64,15 +64,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(24),
+                width: 140,
+                height: 140,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.surface,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                child: Icon(
-                  LucideIcons.ticket,
-                  size: 64,
-                  color: Theme.of(context).primaryColor,
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/logo/logo_app.png',
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeNotifier extends StateNotifier<ThemeMode> {
-  ThemeNotifier() : super(ThemeMode.system) {
+  ThemeNotifier() : super(ThemeMode.light) {
     _loadTheme();
   }
 
@@ -12,6 +12,8 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
     final isDark = prefs.getBool('isDarkTheme');
     if (isDark != null) {
       state = isDark ? ThemeMode.dark : ThemeMode.light;
+    } else {
+      state = ThemeMode.light;
     }
   }
 

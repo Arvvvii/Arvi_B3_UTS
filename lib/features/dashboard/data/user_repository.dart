@@ -1,31 +1,23 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:arvi_b3_uts/features/auth/domain/user_model.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:arvi_b3_uts/core/network/dio_client.dart';
 
+/// [FIXED v3.0.0] UserRepository sekarang menggunakan Dio dari dioProvider
+/// yang sudah dikonfigurasi dengan:
+///   - baseUrl dari dotenv.env['BACKEND_URL'] (bukan API_BASE_URL yang salah)
+///   - Token Authorization dari Supabase session via interceptor
+///
+/// Bug sebelumnya: menggunakan dotenv.env['API_BASE_URL'] yang tidak ada di .env,
+/// sehingga fallback ke http://10.0.2.2:8080 (hanya jalan di emulator).
 class UserRepository {
   final Dio _dio;
-  final SupabaseClient _supabase;
 
-  UserRepository(this._dio, this._supabase);
+  UserRepository(this._dio);
 
   Future<List<UserModel>> getUsers() async {
     try {
-      final session = _supabase.auth.currentSession;
-      if (session == null) {
-        throw Exception('Not authenticated');
-      }
-
-      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8080';
-      final response = await _dio.get(
-        '$baseUrl/users',
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${session.accessToken}',
-          },
-        ),
-      );
+      final response = await _dio.get('/users');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -41,20 +33,7 @@ class UserRepository {
 
   Future<List<UserModel>> getHelpdeskUsers() async {
     try {
-      final session = _supabase.auth.currentSession;
-      if (session == null) {
-        throw Exception('Not authenticated');
-      }
-
-      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8080';
-      final response = await _dio.get(
-        '$baseUrl/users/helpdesk',
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${session.accessToken}',
-          },
-        ),
-      );
+      final response = await _dio.get('/users/helpdesk');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -70,21 +49,9 @@ class UserRepository {
 
   Future<bool> toggleUserStatus(String userId, bool isActive) async {
     try {
-      final session = _supabase.auth.currentSession;
-      if (session == null) {
-        throw Exception('Not authenticated');
-      }
-
-      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:8080';
       final response = await _dio.patch(
-        '$baseUrl/users/$userId/status',
+        '/users/$userId/status',
         data: {'is_active': isActive},
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${session.accessToken}',
-            'Content-Type': 'application/json',
-          },
-        ),
       );
 
       if (response.statusCode == 200) {
@@ -99,7 +66,9 @@ class UserRepository {
   }
 }
 
+/// [FIXED v3.0.0] Menggunakan Dio dari dioProvider (bukan Dio() baru tanpa config).
+/// Ini memastikan base URL dan token Authorization konsisten di seluruh aplikasi.
 final userRepositoryProvider = Provider<UserRepository>((ref) {
-  final dio = Dio();
-  return UserRepository(dio, Supabase.instance.client);
+  final dio = ref.watch(dioProvider);
+  return UserRepository(dio);
 });
